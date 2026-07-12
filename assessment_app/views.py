@@ -54,6 +54,12 @@ def send_verification_code(request):
     EmailVerification.objects.create(email=email, code=code)
 
     print("Verification code saved to database.")
+    
+    print("EMAIL_HOST:", settings.EMAIL_HOST)
+    print("EMAIL_PORT:", settings.EMAIL_PORT)
+    print("EMAIL_HOST_USER:", settings.EMAIL_HOST_USER)
+    print("Password exists:", bool(settings.EMAIL_HOST_PASSWORD))
+
     try:
         print("About to send email...")
 
@@ -73,6 +79,8 @@ def send_verification_code(request):
         print("Email sent successfully!")
 
     except Exception as e:
+        print("Email sending failed:", repr(e))
+        
         return Response(
             {'error': f'Failed to send email: {str(e)}'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
