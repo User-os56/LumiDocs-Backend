@@ -42,15 +42,21 @@ def send_verification_code(request):
 
     if not email:
         return Response({'error': 'Email is required.'}, status=status.HTTP_400_BAD_REQUEST)
-
+    
+    print("Checking if user exists...")
     if User.objects.filter(email=email).exists():
         return Response({'error': 'An account with this email already exists.'}, status=status.HTTP_400_BAD_REQUEST)
 
     code = str(random.randint(100000, 999999))
     EmailVerification.objects.filter(email=email, is_used=False).delete()
+    
+    print("Creating verification code...")
     EmailVerification.objects.create(email=email, code=code)
 
+    print("Verification code saved to database.")
     try:
+        print("About to send email...")
+
         send_mail(
             subject='Your LUMIERE Verification Code',
             message=(
@@ -64,6 +70,8 @@ def send_verification_code(request):
             recipient_list=[email],
             fail_silently=False,
         )
+        print("Email sent successfully!")
+
     except Exception as e:
         return Response(
             {'error': f'Failed to send email: {str(e)}'},
