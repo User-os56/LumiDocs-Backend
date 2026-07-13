@@ -171,13 +171,17 @@ SIMPLE_JWT = {
 }
 
 # ── Email (Gmail SMTP) ────────────────────────────────────────────────────────
-EMAIL_BACKEND       = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST          = 'smtp.gmail.com'
-EMAIL_PORT          = 587
-EMAIL_USE_TLS       = True
-EMAIL_HOST_USER     = os.getenv('EMAIL_HOST_USER')
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_APP_PASSWORD')
-DEFAULT_FROM_EMAIL  = os.getenv('EMAIL_HOST_USER')
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+
+EMAIL_HOST = "smtp-relay.brevo.com"
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+
+EMAIL_HOST_USER = os.getenv("BREVO_SMTP_LOGIN")
+EMAIL_HOST_PASSWORD = os.getenv("BREVO_SMTP_PASSWORD")
+
+DEFAULT_FROM_EMAIL = "LUMIERE <sijilumiere@gmail.com>"
+
 EMAIL_TIMEOUT = 10
 
 STATIC_URL = "static/"

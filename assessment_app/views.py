@@ -72,7 +72,7 @@ def send_verification_code(request):
                 f'If you did not request this, please ignore this email.\n\n'
                 f'— The LUMIERE Team'
             ),
-            from_email=settings.EMAIL_HOST_USER,
+            from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[email],
             fail_silently=False,
         )
@@ -196,7 +196,7 @@ def resend_code(request):
         send_mail(
             subject='Your LUMIERE Verification Code (Resent)',
             message=f'Your new verification code is: {code}\n\nExpires in 10 minutes.\n\n— The LUMIERE Team',
-            from_email=settings.EMAIL_HOST_USER,
+            from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[email],
             fail_silently=False,
         )
