@@ -1,5 +1,6 @@
 import random
 import json
+import requests
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
 from django.core.mail import send_mail
@@ -61,34 +62,47 @@ def send_verification_code(request):
     print("Password exists:", bool(settings.EMAIL_HOST_PASSWORD))
 
     try:
-        print("About to send email...")
-
-        send_mail(
-            subject='Your LUMIERE Verification Code',
-            message=(
-                f'Hello,\n\n'
-                f'Your verification code is: {code}\n\n'
-                f'This code expires in 10 minutes.\n\n'
-                f'If you did not request this, please ignore this email.\n\n'
-                f'— The LUMIERE Team'
-            ),
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[email],
-            fail_silently=False,
+        response = requests.post(
+            "https://api.brevo.com/v3/smtp/email",
+            headers={
+                "accept": "application/json",
+                "api-key": settings.BREVO_API_KEY,
+                "content-type": "application/json",
+            },
+            json={
+                "sender": {
+                    "name": "LUMIERE",
+                    "email": "sijilumiere@gmail.com",
+                },
+                "to": [
+                    {
+                        "email": email,
+                    }
+                ],
+                "subject": "Your LUMIERE Verification Code",
+                "textContent": (
+                    f"Hello,\n\n"
+                    f"Your verification code is: {code}\n\n"
+                    f"This code expires in 10 minutes.\n\n"
+                    f"If you did not request this, please ignore this email.\n\n"
+                    f"— The LUMIERE Team"
+                ),
+            },
+            timeout=15,
         )
-        print("Email sent successfully!")
+
+        print("Brevo Status:", response.status_code)
+        print("Brevo Response:", response.text)
+
+        response.raise_for_status()
 
     except Exception as e:
-        print("Email sending failed:", repr(e))
-        
+        print("Brevo Error:", repr(e))
+
         return Response(
-            {'error': f'Failed to send email: {str(e)}'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            {"error": f"Failed to send email: {str(e)}"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
-
-    return Response({'message': 'Verification code sent. Please check your email.'}, status=status.HTTP_200_OK)
-
-
 # ─────────────────────────────────────────────
 # REGISTER
 # ─────────────────────────────────────────────
