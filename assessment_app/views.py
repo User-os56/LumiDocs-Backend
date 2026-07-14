@@ -103,6 +103,12 @@ def send_verification_code(request):
             {"error": f"Failed to send email: {str(e)}"},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
+    return Response(
+    {
+        "message": "Verification code sent. Please check your email."
+    },
+    status=status.HTTP_200_OK,
+)
 # ─────────────────────────────────────────────
 # REGISTER
 # ─────────────────────────────────────────────
