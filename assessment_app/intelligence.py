@@ -2,13 +2,16 @@ import os
 import json
 import random
 import re
+from tavily import TavilyClient
 from groq import Groq
 from dotenv import load_dotenv
 
 load_dotenv()
 
 client = Groq(api_key=os.getenv('GROQ_API_KEY'))
-
+tavily = TavilyClient(
+    api_key=os.getenv("TAVILY_API_KEY")
+)
 # ── Topic banks per field ─────────────────────────────────────────────────
 FIELD_TOPICS = {
     'AI Engineer': [
@@ -402,140 +405,241 @@ def _clean_llm_json(raw: str) -> str:
     
     return raw.strip()
 
-
-def get_recommendations(skill_category: str, final_score: float, tier: str = 'free') -> dict:
+def search_learning_resources(query: str, max_results: int = 3):
     """
-    Generates recommendations via LLM with STRUCTURAL constraint enforcement.
-    Uses system prompt authority + negative examples to force compliance.
+    Searches the web using Tavily and returns cleaned learning resources.
     """
-    level_ctx = get_level_context(final_score)
-    
-    # Validate tier input
-    tier = 'paid' if tier.lower() == 'paid' else 'free'
-    
-    api_key = os.getenv("GROQ_API_KEY")
-    if not api_key:
-        return _minimal_fallback(skill_category, level_ctx['bucket'], tier)
-
-    client = Groq(api_key=api_key)
-
-    # Build the resource type whitelist based on tier (hard constraint)
-    if tier == 'paid':
-        allowed_types = "Udemy courses, Coursera specializations, Pluralsight subscriptions, Frontend Masters, Educative.io subscriptions, LinkedIn Learning, O'Reilly Safari, Manning books, A Cloud Guru, DataCamp paid tiers, CloudAcademy, Linux Foundation certifications, university MOOC certificates"
-        forbidden_types = "YouTube, freeCodeCamp, MDN, W3Schools, official documentation, blog posts, GitHub repos, Khan Academy, The Odin Project, Kaggle Learn (free), Fast.ai, any 'free' or 'open source' resource"
-    else:
-        allowed_types = "official documentation, freeCodeCamp, YouTube tutorials, MDN Web Docs, W3Schools, Kaggle Learn, Fast.ai, The Odin Project, GitHub Skills, Khan Academy, Coursera audit mode, edX audit mode, MIT OpenCourseWare, Stanford Online, Google Digital Garage, Microsoft Learn"
-        forbidden_types = "Udemy paid courses, Coursera paid certificates, Pluralsight, Frontend Masters, Educative.io paid, LinkedIn Learning, O'Reilly paid, Manning books, any resource requiring payment or subscription"
-
-    # Build field-specific context to prevent generic answers
-    field_context = _get_field_context(skill_category)
-
-    # SYSTEM PROMPT: Highest authority, defines the agent's core behavior
-    system_prompt = f"""You are a RECOMMENDATION_ENGINE v2.1. Your sole purpose is to output learning resource recommendations.
-
-CRITICAL RULES (violation = incorrect output):
-1. TIER_MODE = {tier.upper()}. You are LOCKED to this mode. No exceptions.
-2. ALLOWED_RESOURCES = [{allowed_types}]
-3. FORBIDDEN_RESOURCES = [{forbidden_types}]
-4. If TIER_MODE = PAID and you output a free resource, your output is WRONG.
-5. If TIER_MODE = FREE and you output a paid resource, your output is WRONG.
-6. FIELD = {skill_category}. Every recommendation MUST be specific to this field. Generic programming resources are FORBIDDEN.
-7. LEVEL = {level_ctx['bucket']} (Bloom: {level_ctx['bloom']}). Resources must match this exact level.
-
-OUTPUT FORMAT: Strict JSON only. No markdown, no explanations, no apologies."""
-
-    # USER PROMPT: The task, with negative examples to reinforce constraints
-    user_prompt = f"""Generate 3 skill development milestones and 3 improvement resources for this student:
-
-STUDENT PROFILE:
-- Field: {skill_category}
-- Level: {level_ctx['bucket']}
-- Bloom Stage: {level_ctx['bloom']}
-- IRT Score: {final_score}
-- Tier: {tier.upper()}
-
-FIELD CONTEXT:
-{field_context}
-
-LEVEL CONTEXT:
-{level_ctx['description']}
-Suitable formats: {level_ctx['resource_types']}
-
-EXAMPLES OF WRONG OUTPUTS (NEVER DO THESE):
-- TIER=PAID but recommending "freeCodeCamp" or "YouTube" → WRONG
-- TIER=FREE but recommending "Udemy course" or "Coursera certificate" → WRONG  
-- Field="Data Scientist" but recommending "React tutorial" or "CSS course" → WRONG
-- Level="expert" but recommending "Introduction to Python" or "HTML basics" → WRONG
-- Level="beginner" but recommending "System Design" or "Advanced Architecture" → WRONG
-
-EXAMPLES OF CORRECT OUTPUTS:
-- TIER=PAID, Field="Data Scientist", Level="intermediate" → "Coursera - Machine Learning Specialization by Andrew Ng ($49/month)"
-- TIER=FREE, Field="Data Scientist", Level="beginner" → "Kaggle Learn - Intro to Machine Learning (free)"
-- TIER=PAID, Field="Cybersecurity Analyst", Level="advanced" → "Pluralsight - Ethical Hacking Path ($29/month)"
-- TIER=FREE, Field="Front End Developer", Level="intermediate" → "MDN Web Docs - JavaScript Guide (free)"
-
-OUTPUT SCHEMA:
-{{
-    "skill_development": [
-        {{
-            "title": "Specific milestone name",
-            "description": "Why this milestone fits their {level_ctx['bucket']} level and {skill_category} field. 2 sentences.",
-            "url": "https://real-verified-site.com/specific-path",
-            "priority": "High",
-            "buttonText": "Start Learning"
-        }}
-    ],
-    "improvement_resources": [
-        {{
-            "title": "Specific resource name with platform",
-            "type": "Video Course / Interactive Lab / Book / Documentation / Certification",
-            "priority": "High/Medium/Low",
-            "url": "https://real-verified-site.com/specific-path",
-            "description": "Why this fits their {level_ctx['bucket']} level in {skill_category}"
-        }}
-    ]
-}}
-
-REMEMBER: TIER={tier.upper()}. FIELD={skill_category}. LEVEL={level_ctx['bucket']}."""
 
     try:
-        chat_completion = client.chat.completions.create(
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            model="llama-3.3-70b-versatile",
-            temperature=0.3,
-            max_tokens=2500,
+
+        response = tavily.search(
+            query=query,
+            search_depth="advanced",
+            max_results=max_results,
+            include_answer=False,
+            include_images=False,
         )
 
-        if not chat_completion or not chat_completion.choices:
-            print("❌ LLM returned no choices")
-            raise ValueError("Empty response from LLM")
+        resources = []
 
-        response_content = chat_completion.choices[0].message.content
-        if not response_content:
-            print("❌ LLM returned empty content")
-            raise ValueError("Empty content from LLM")
+        for result in response.get("results", []):
 
-        # DEBUG: Log raw response
-        print(f"[DEBUG] LLM raw response (first 800 chars): {response_content[:800]}")
-        
-        # CLEAN: Strip markdown fences before parsing
-        cleaned_content = _clean_llm_json(response_content)
-        print(f"[DEBUG] Cleaned JSON (first 800 chars): {cleaned_content[:800]}")
-        
-        # PARSE: Now this should work
-        result = json.loads(cleaned_content)
-        
-        # VALIDATE: Enforce constraints
-        result = _enforce_tier_constraints(result, tier, skill_category, level_ctx['bucket'])
-        return result
+            resources.append({
+                "title": result.get("title", ""),
+                "url": result.get("url", ""),
+                "description": result.get("content", "")[:250]
+            })
+
+        return resources
 
     except Exception as e:
-        print(f"❌ LLM Recommendation Error: {e}")
-        return _minimal_fallback(skill_category, level_ctx['bucket'], tier)
+
+        print("Tavily Search Error:", e)
+
+        return []
     
+def build_search_queries(skill_category, level_bucket, tier):
+    """
+    Builds several search queries so Tavily can find diverse resources.
+    """
+    
+    if tier == "paid":
+
+        return [
+
+        f"best paid {level_bucket} {skill_category} course",
+
+        f"Udemy {level_bucket} {skill_category}",
+
+        f"Coursera {level_bucket} {skill_category}",
+
+        f"Pluralsight {level_bucket} {skill_category}",
+
+        f"{level_bucket} {skill_category} certification"
+
+    ]
+
+    else:
+
+            return [
+
+        f"free {level_bucket} {skill_category} tutorial",
+
+        f" {level_bucket} {skill_category} official documentation",
+
+        f"freeCodeCamp {level_bucket} {skill_category}",
+
+        f"YouTube {level_bucket} {skill_category}",
+
+        f" {level_bucket} {skill_category} roadmap"
+
+    ]
+            
+
+
+   
+def collect_real_resources(skill_category, level_bucket, tier):
+
+    queries = build_search_queries(
+        skill_category,
+        level_bucket,
+        tier
+    )
+
+
+    resources = []
+
+    seen = set()
+
+    for query in queries:
+
+        results = search_learning_resources(query)
+
+        for r in results:
+
+            url = r["url"]
+
+            if url not in seen:
+
+                seen.add(url)
+
+                resources.append(r)
+
+    return resources
+
+
+def get_recommendations(skill_category: str, final_score: float, tier: str = "free") -> dict:
+    """
+    Uses Groq to identify learning topics, then Tavily to retrieve real learning resources.
+    """
+
+    level_ctx = get_level_context(final_score)
+
+    try:
+
+        prompt = f"""
+You are an expert career mentor.
+
+A student completed an adaptive assessment.
+
+Field:
+{skill_category}
+
+Skill Level:
+{level_ctx["bucket"]}
+
+Bloom Level:
+{level_ctx["bloom"]}
+
+Recommend exactly THREE learning milestones.
+
+For each milestone return:
+
+- title
+- topic
+- short description
+- priority
+
+Return ONLY valid JSON.
+
+Example:
+
+[
+    {{
+        "title":"Master REST APIs",
+        "topic":"REST API Design",
+        "description":"Learn API architecture and HTTP best practices.",
+        "priority":"High"
+    }}
+]
+"""
+
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            temperature=0.4,
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ]
+        )
+
+        content = response.choices[0].message.content
+
+        milestones = json.loads(_clean_llm_json(content))
+
+    except Exception as e:
+
+        print("Groq Recommendation Error:", e)
+
+        milestones = [
+            {
+                "title": f"Improve {skill_category}",
+                "topic": skill_category,
+                "description": "Continue improving your skills.",
+                "priority": "High"
+            }
+        ]
+
+    skill_development = []
+
+    improvement_resources = []
+
+    seen_urls = set()
+
+    for milestone in milestones:
+
+     
+        resources = collect_real_resources(
+            milestone["topic"],
+            level_ctx["bucket"],
+            tier
+        )
+
+        skill_development.append({
+
+            "title": milestone["title"],
+
+            "description": milestone["description"],
+
+            "priority": milestone["priority"],
+
+            "buttonText": "Start Learning",
+
+            "url": resources[0]["url"] if resources else ""
+
+        })
+
+        for resource in resources:
+
+            if resource["url"] in seen_urls:
+                continue
+
+            seen_urls.add(resource["url"])
+
+            improvement_resources.append({
+
+                "title": resource["title"],
+
+                "type": "Learning Resource",
+
+                "priority": milestone["priority"],
+
+                "url": resource["url"],
+
+                "description": resource["description"]
+
+            })
+
+    return {
+
+        "skill_development": skill_development,
+
+        "improvement_resources": improvement_resources
+
+    }
+
 def _get_field_context(skill_category: str) -> str:
     """Returns specific context about a field to prevent generic recommendations."""
     contexts = {
