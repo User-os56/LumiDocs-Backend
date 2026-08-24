@@ -79,16 +79,13 @@ WSGI_APPLICATION = 'my_project.wsgi.application'
 
 
 # Database
-# https://docs.djangoproject.com/en/6.0/ref/settings/#databases
+
 DATABASES = {
-    'default': {
-        'ENGINE':   'django.db.backends.postgresql',
-        'NAME':     os.getenv('DB_NAME',     'lumiere_db'),
-        'USER':     os.getenv('DB_USER',     'lumiere_user'),
-        'PASSWORD': os.getenv('DB_PASSWORD', 'your_password_here'),
-        'HOST':     os.getenv('DB_HOST',     'localhost'),
-        'PORT':     os.getenv('DB_PORT',     '5432'),
-    }
+    'default': dj_database_url.config(
+        default=os.environ.get('DATABASE_URL', 'postgres://postgres:LumiereSecure2026!@localhost:5432/lumiere_db'),
+        conn_max_age=600,
+        conn_health_checks=True,
+    )
 }
 
 if os.getenv('DATABASE_URL'):
