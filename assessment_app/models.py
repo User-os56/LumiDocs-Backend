@@ -1,18 +1,18 @@
+from datetime import timedelta
 from django.db import models
 from django.contrib.auth.models import User
-import random
-import string
 from django.utils import timezone
-from datetime import timedelta
-
 
 
 class UserProfile(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
-    department = models.CharField(max_length=150)
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name='profile'
+    )
 
     def __str__(self):
-        return f"{self.user.username} - {self.department}"
+        return self.user.username
 
 
 class EmailVerification(models.Model):
@@ -28,29 +28,6 @@ class EmailVerification(models.Model):
         return f"{self.email} - {self.code}"
 
 
-class UserProgress(models.Model):
-    user            = models.ForeignKey(User, on_delete=models.CASCADE)
-    expertise_field = models.CharField(max_length=100, default='Computer Science')
-
-    # IRT adaptive scoring
-    current_step    = models.IntegerField(default=1)
-    current_theta   = models.FloatField(default=0.0)
-    is_completed    = models.BooleanField(default=False)
-
-    # Batch question cache — stores JSON list of 10 questions
-    question_batch  = models.TextField(null=True, blank=True)
-    batch_index     = models.IntegerField(default=0)
-
-    # Tracks topics already asked to prevent repetition
-    asked_topics    = models.TextField(null=True, blank=True)
-
-    started_at      = models.DateTimeField(null=True, blank=True)
-
-    def __str__(self):
-        return f"{self.user.username} - {self.expertise_field} - Step {self.current_step}"
-
-
-
 class AssessmentResult(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     skill_category = models.CharField(max_length=100)
@@ -60,10 +37,56 @@ class AssessmentResult(models.Model):
     def __str__(self):
         return f"{self.user.username} - {self.skill_category} - {self.score}"
 
-class UserProfile(models.Model):
-    user            = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
-    department      = models.CharField(max_length=150)
-    expertise_field = models.CharField(max_length=100, default='Full Stack Developer')
+
+class UploadedDocument(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('processing', 'Processing'),
+        ('ready', 'Ready'),
+        ('failed', 'Failed'),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='documents')
+    file = models.FileField(upload_to='uploads/%Y/%m/')
+    original_name = models.CharField(max_length=255)
+    extracted_text = models.TextField(blank=True)
+    file_type = models.CharField(max_length=10, blank=True)  # pdf, docx, pptx, etc.
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.user.username} - {self.department} - {self.expertise_field}"
+        return f"{self.original_name} ({self.user.username})"
+
+
+class TestAttempt(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='test_attempts')
+    document = models.ForeignKey(UploadedDocument, on_delete=models.SET_NULL, null=True, blank=True, related_name='test_attempts')
+    
+    # Questionnaire settings
+    difficulty = models.CharField(max_length=50)  # Easy, Medium, Hard
+    question_type = models.CharField(max_length=50, default='multiple_choice')
+    
+    # Scoring results
+    score = models.IntegerField()
+    total_questions = models.IntegerField()
+    percentage = models.FloatField()
+    grade = models.CharField(max_length=5)  # A, B, C, D, F
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        doc_name = self.document.original_name if self.document else 'Deleted Doc'
+        return f"{self.user.username} - {doc_name} - {self.percentage}%"
+
+
+class QuestionAttempt(models.Model):
+    test_attempt = models.ForeignKey(TestAttempt, on_delete=models.CASCADE, related_name='questions')
+    question_text = models.TextField()
+    options = models.JSONField(default=dict)  # Supports both dict {"a": "..."} and list ["..."]
+    user_answer = models.TextField(blank=True)
+    correct_answer = models.TextField()
+    is_correct = models.BooleanField(default=False)
+    explanation = models.TextField(blank=True)
+
+    def __str__(self):
+        return f"Q: {self.question_text[:30]} | Correct: {self.is_correct}"

@@ -143,6 +143,9 @@ CORS_EXPOSE_HEADERS = ["*"]
 
 CORS_ALLOWED_ORIGINS = [
     "https://lumiere.vercel.app",
+    "http://localhost:3000",
+    "https://lumi-docs-rho.vercel.app/",
+    "http://127.0.0.1:3000",
 ]
 
 
@@ -170,6 +173,7 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
 BREVO_API_KEY = os.getenv("BREVO_API_KEY")
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'sijilumiere@gmail.com')
 # ── Email (Gmail SMTP) ────────────────────────────────────────────────────────
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 
@@ -187,3 +191,6 @@ EMAIL_TIMEOUT = 10
 STATIC_URL = "static/"
 
 STATIC_ROOT = BASE_DIR / "staticfiles"
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'

@@ -13,8 +13,6 @@ print("=== Testing Question Generation ===\n")
 questions = generate_question_batch(
     start_step=1,
     current_theta=0.0,
-    skill_type='technical',
-    expertise_field='Cybersecurity Analyst',
     batch_size=5
 )
 
