@@ -143,7 +143,7 @@ CORS_EXPOSE_HEADERS = ["*"]
 CORS_ALLOWED_ORIGINS = [
     "https://lumiere.vercel.app",
     "http://localhost:3000",
-    "https://lumi-docs-rho.vercel.app/",
+    "https://lumi-docs-rho.vercel.app",
     "http://127.0.0.1:3000",
 ]
 
